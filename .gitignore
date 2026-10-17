@@ -221,3 +221,8 @@ __marimo__/
 
 # agents
 AGENTS.md
+# Downloaded datasets and generated data artifacts
+/data/
+
+# Application logs, including rotated backups
+/logs/

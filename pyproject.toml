@@ -8,9 +8,17 @@ dependencies = [
     "transformers>=5.20.1",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
 [build-system]
 requires = ["uv_build>=0.8.15,<0.9.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
