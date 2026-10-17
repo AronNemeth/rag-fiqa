@@ -1,5 +1,5 @@
 [project]
-name = "rag-squad"
+name = "rag-fiqa"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"

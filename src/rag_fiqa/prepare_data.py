@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from urllib.request import urlopen
 from zipfile import ZipFile
 
-from rag_squad.config import (
+from rag_fiqa.config import (
     DATASET_ARCHIVE,
     DATASET_MD5,
     DATASET_NAME,
@@ -19,7 +19,7 @@ from rag_squad.config import (
     PREPARED_DATA_DIR,
     QRELS_SPLITS,
 )
-from rag_squad.utils import get_logger, setup_logging
+from rag_fiqa.utils import get_logger, setup_logging
 
 logger = get_logger(__name__)
 

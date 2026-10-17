@@ -4,7 +4,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from rag_squad.config import LOG_BACKUP_COUNT, LOG_FILE, LOG_FORMAT, LOG_LEVEL, LOG_MAX_BYTES
+from rag_fiqa.config import LOG_BACKUP_COUNT, LOG_FILE, LOG_FORMAT, LOG_LEVEL, LOG_MAX_BYTES
 
 
 def setup_logging(level: str = LOG_LEVEL, log_file: Path = LOG_FILE) -> None:

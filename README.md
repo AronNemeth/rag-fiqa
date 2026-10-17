@@ -1,7 +1,6 @@
-# rag-squad
+# rag-fiqa
 
-A small financial Q&A RAG application using FiQA-2018. See
-[the implementation plan](plans/rag_implementation_plan.md) for the planned pipeline.
+A small financial Q&A RAG application using FiQA-2018.
 
 ## Setup
 
@@ -16,7 +15,7 @@ uv sync
 From the repository root, run:
 
 ```bash
-uv run python -m rag_squad.prepare_data
+uv run python -m rag_fiqa.prepare_data
 ```
 
 This downloads the official [BEIR FiQA archive](https://github.com/beir-cellar/beir/wiki/Datasets-available)
@@ -38,7 +37,7 @@ Do not index queries or qrels. When indexing the deduplicated copy, retain and e
 
 `prepare_data.py` handles download and preprocessing; vector-store ingestion will be a separate step.
 Logs show progress and record counts without printing source text. Dataset artifacts are ignored by Git.
-Data paths are anchored to the repository root through `rag_squad.config`, independently of
+Data paths are anchored to the repository root through `rag_fiqa.config`, independently of
 the working directory when using the editable installation.
 
 ## Logging
@@ -48,7 +47,7 @@ The directory is created automatically under the repository root. Logs append ac
 and rotate at 5 MiB, retaining three backups (`app.log.1` through `app.log.3`).
 The entire `logs/` directory is ignored by Git.
 
-Logging level, format, file path, and rotation limits are defined in `rag_squad.config`.
+Logging level, format, file path, and rotation limits are defined in `rag_fiqa.config`.
 Call `setup_logging()` once at each application entry point; importing modules does not
 create log files. Repeated setup replaces existing root handlers.
 

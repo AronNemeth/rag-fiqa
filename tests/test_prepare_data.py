@@ -4,8 +4,8 @@ from zipfile import ZipFile
 
 import pytest
 
-from rag_squad import prepare_data
-from rag_squad.prepare_data import deduplicate_corpus, file_checksum, prepare_dataset, read_records
+from rag_fiqa import prepare_data
+from rag_fiqa.prepare_data import deduplicate_corpus, file_checksum, prepare_dataset, read_records
 
 
 def make_archive(path: Path, *, missing_document: bool = False) -> Path:
