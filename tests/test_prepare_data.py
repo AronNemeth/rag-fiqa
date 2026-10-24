@@ -4,8 +4,8 @@ from zipfile import ZipFile
 
 import pytest
 
-from rag_fiqa import prepare_data
-from rag_fiqa.prepare_data import deduplicate_corpus, file_checksum, prepare_dataset, read_records
+from rag_fiqa import data
+from rag_fiqa.data import deduplicate_corpus, file_checksum, prepare_dataset, read_records
 
 
 def make_archive(path: Path, *, missing_document: bool = False) -> Path:
@@ -84,9 +84,9 @@ def test_corrupt_cached_download_is_rejected(tmp_path: Path, monkeypatch: pytest
     def unexpected_download(*args: object, **kwargs: object) -> None:
         pytest.fail("A cached corrupt archive should fail without a download")
 
-    monkeypatch.setattr(prepare_data, "urlopen", unexpected_download)
+    monkeypatch.setattr(data, "urlopen", unexpected_download)
     with pytest.raises(ValueError, match="Checksum mismatch"):
-        prepare_data.download_dataset(archive)
+        data.download_dataset(archive)
 
 
 def test_incomplete_download_is_removed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,8 +95,8 @@ def test_incomplete_download_is_removed(tmp_path: Path, monkeypatch: pytest.Monk
     def interrupted_download(*args: object, **kwargs: object) -> None:
         raise TimeoutError("download interrupted")
 
-    monkeypatch.setattr(prepare_data, "urlopen", interrupted_download)
+    monkeypatch.setattr(data, "urlopen", interrupted_download)
     with pytest.raises(TimeoutError):
-        prepare_data.download_dataset(archive)
+        data.download_dataset(archive)
     assert not archive.exists()
     assert not archive.with_suffix(".zip.part").exists()

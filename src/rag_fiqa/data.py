@@ -4,7 +4,6 @@ import csv
 import hashlib
 import json
 import shutil
-import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.request import urlopen
@@ -19,7 +18,7 @@ from rag_fiqa.config import (
     PREPARED_DATA_DIR,
     QRELS_SPLITS,
 )
-from rag_fiqa.utils import get_logger, setup_logging
+from rag_fiqa.utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -204,17 +203,3 @@ def prepare_dataset(archive: Path, output_dir: Path = PREPARED_DATA_DIR) -> None
         )
         if empty_ids:
             logger.warning("Excluded %d empty documents from embedding copy; IDs retained in manifest", len(empty_ids))
-
-
-def main() -> None:
-    """Configure logging and prepare the downloaded dataset."""
-    setup_logging()
-    try:
-        prepare_dataset(download_dataset())
-    except Exception:
-        logger.exception("Dataset preparation failed")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
