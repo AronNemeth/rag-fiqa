@@ -5,7 +5,7 @@ A small financial Q&A RAG application using FiQA-2018.
 ## Project Structure
 
 - `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, etc.) with no CLI side effects on import.
-- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`prepare_data.py`, `download_models.py`, `chunk_corpus.py`, etc.).
+- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`prepare_data.py`, `download_models.py`, etc.).
 - `tests/`: Unit tests using fast local fixtures.
 
 ## Setup
@@ -71,28 +71,12 @@ HTML stripping or whitespace normalization so chunk offsets refer to the source 
 Do not index queries or qrels. When indexing the deduplicated copy, retain and expand
 `original_document_ids` for document-level evaluation against the original qrels.
 
-## Chunk the corpus
+## Chunking (`rag_fiqa.chunking`)
 
-Run the separate chunking step after dataset preparation:
+Corpus chunking runs in memory during the indexing pipeline.
 
-```bash
-uv run python scripts/chunk_corpus.py
-```
-
-Use `--corpus PATH`, `--output-dir PATH`, `--chunk-size INT`, and `--overlap INT` to override defaults.
-
-The default input is `data/processed/fiqa/corpus_deduplicated.jsonl`. Outputs go into
-`data/chunks/fiqa/chunks.jsonl` and `chunking_manifest.json`.
-
-Settings in `rag_fiqa.config` specify a default maximum body length of 800 characters and
-up to 120 characters of overlap. Short documents stay whole. Longer documents prefer paragraph,
-sentence, then word boundaries in the latter half of a window, falling back to the exact character
-limit. Overlap is capped at half the emitted chunk length to ensure progress.
-
-Each chunk stores a deterministic `chunk_id`, `parent_document_id`, `original_document_ids`,
-`chunk_index`, `title`, `text`, and half-open character offsets (`start_char`, `end_char`)
-where `parent_text[start_char:end_char] == text`. During indexing, use `rag_fiqa.chunking.embedding_text(title, text)`
-to form the model input and validate against the model's token limit.
+- Uses the cached `sentence-transformers/all-MiniLM-L6-v2` tokenizer (`CHUNK_SIZE_TOKENS = 256`, `CHUNK_OVERLAP_TOKENS = 32` in `rag_fiqa.config`).
+- Short documents stay whole. Longer documents prefer paragraph, sentence, then word boundaries in the latter half of a token window while preserving exact character offsets (`parent_text[start_char:end_char] == text`).
 
 ## Logging
 
