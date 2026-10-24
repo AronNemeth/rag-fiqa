@@ -4,8 +4,8 @@ A small financial Q&A RAG application using FiQA-2018.
 
 ## Project Structure
 
-- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, etc.) with no CLI side effects on import.
-- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`prepare_data.py`, `chunk_corpus.py`, etc.).
+- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, etc.) with no CLI side effects on import.
+- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`prepare_data.py`, `download_models.py`, `chunk_corpus.py`, etc.).
 - `tests/`: Unit tests using fast local fixtures.
 
 ## Setup
@@ -15,6 +15,36 @@ From the repository root, install the project and its development dependencies:
 ```bash
 uv sync
 ```
+
+## Download Models
+
+Download the pinned Hugging Face embedding and reranker models and pull the default Ollama generation model:
+
+```bash
+uv run python scripts/download_models.py
+```
+
+By default, this script:
+
+- Downloads the embedding model (`sentence-transformers/all-MiniLM-L6-v2`, revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`) and reranker model (`cross-encoder/ms-marco-MiniLM-L6-v2`, revision `233902d25c440f23af6f7d6e94d2946bac0bee0a`) via the Hugging Face Hub API (`snapshot_download`), skipping redundant non-PyTorch weights.
+- Stores Hugging Face snapshots in the standard Hugging Face cache (`~/.cache/huggingface/hub` by default, or configurable via `HF_HOME`, `HF_HUB_CACHE`, or `--cache-dir PATH`). Model weights are never copied into the repository.
+- Pulls the default generation model (`qwen3:4b`) through the Ollama CLI (`ollama pull qwen3:4b`). Requires the `ollama` CLI and a running Ollama daemon (`ollama serve`).
+- Writes a reproducibility manifest to `data/models/models_manifest.json` recording the pinned model IDs, Git revisions, resolved snapshot paths, and Ollama model digest.
+
+Useful options for selective or constrained environments:
+
+```bash
+# Download only the embedding model and skip Ollama
+uv run python scripts/download_models.py --hf-role embedding --skip-ollama
+
+# Use a custom Hugging Face cache directory
+uv run python scripts/download_models.py --cache-dir /path/to/hf_cache
+
+# Pull the smaller fallback generation model explicitly
+uv run python scripts/download_models.py --generation-model qwen2.5:3b
+```
+
+Repeated runs reuse cached Hugging Face snapshots and Ollama layers without re-downloading.
 
 ## Prepare the dataset
 

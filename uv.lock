@@ -1041,6 +1041,7 @@ name = "rag-fiqa"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "huggingface-hub" },
     { name = "pandas" },
     { name = "transformers" },
 ]
@@ -1055,6 +1056,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "huggingface-hub", specifier = ">=2.2.0" },
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "transformers", specifier = ">=5.20.1" },
 ]

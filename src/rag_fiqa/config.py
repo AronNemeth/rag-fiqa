@@ -29,3 +29,23 @@ CHUNK_SIZE_CHARS = 800
 CHUNK_OVERLAP_CHARS = 120
 CHUNKS_DIR = DATA_DIR / "chunks" / DATASET_NAME
 CHUNK_CORPUS_PATH = PREPARED_DATA_DIR / "corpus_deduplicated.jsonl"
+
+# model and artifact settings
+EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+RERANKER_MODEL_ID = "cross-encoder/ms-marco-MiniLM-L6-v2"
+RERANKER_MODEL_REVISION = "233902d25c440f23af6f7d6e94d2946bac0bee0a"
+HF_MODELS: dict[str, dict[str, str]] = {
+    "embedding": {
+        "repo_id": EMBEDDING_MODEL_ID,
+        "revision": EMBEDDING_MODEL_REVISION,
+    },
+    "reranker": {
+        "repo_id": RERANKER_MODEL_ID,
+        "revision": RERANKER_MODEL_REVISION,
+    },
+}
+GENERATION_MODEL_NAME = "qwen3:4b"
+GENERATION_MODEL_ALTERNATIVES = ("qwen2.5:3b",)
+SUPPORTED_GENERATION_MODELS = (GENERATION_MODEL_NAME, *GENERATION_MODEL_ALTERNATIVES)
+MODELS_MANIFEST_PATH = DATA_DIR / "models" / "models_manifest.json"
