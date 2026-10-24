@@ -4,8 +4,8 @@ A small financial Q&A RAG application using FiQA-2018.
 
 ## Project Structure
 
-- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, etc.) with no CLI side effects on import.
-- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`prepare_data.py`, `download_models.py`, etc.).
+- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, `indexing`) with no CLI side effects on import.
+- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`download_models.py`, `prepare_data.py`, `build_index.py`).
 - `tests/`: Unit tests using fast local fixtures.
 
 ## Setup
@@ -16,7 +16,7 @@ From the repository root, install the project and its development dependencies:
 uv sync
 ```
 
-## Download Models
+## 1. Download Models
 
 Download the pinned Hugging Face embedding and reranker models and pull the default Ollama generation model:
 
@@ -46,7 +46,7 @@ uv run python scripts/download_models.py --generation-model qwen2.5:3b
 
 Repeated runs reuse cached Hugging Face snapshots and Ollama layers without re-downloading.
 
-## Prepare the dataset
+## 2. Prepare the Dataset
 
 From the repository root, run:
 
@@ -71,12 +71,23 @@ HTML stripping or whitespace normalization so chunk offsets refer to the source 
 Do not index queries or qrels. When indexing the deduplicated copy, retain and expand
 `original_document_ids` for document-level evaluation against the original qrels.
 
-## Chunking (`rag_fiqa.chunking`)
+## 3. Build the Vector Index (Chunking + Embedding + Qdrant)
 
-Corpus chunking runs in memory during the indexing pipeline.
+After downloading the embedding model and preparing the dataset, build the local Qdrant vector store:
 
-- Uses the cached `sentence-transformers/all-MiniLM-L6-v2` tokenizer (`CHUNK_SIZE_TOKENS = 256`, `CHUNK_OVERLAP_TOKENS = 32` in `rag_fiqa.config`).
-- Short documents stay whole. Longer documents prefer paragraph, sentence, then word boundaries in the latter half of a token window while preserving exact character offsets (`parent_text[start_char:end_char] == text`).
+```bash
+# Test indexing speed on a reproducible 500-document subset
+uv run python scripts/build_index.py --subset-size 500
+
+# Build the index over the full deduplicated corpus (57,598 documents)
+uv run python scripts/build_index.py
+```
+
+How `scripts/build_index.py` works:
+
+- **Optional Reproducible Subset (`--subset-size N`):** When specified, retains known positively judged documents from `qrels/{dev,test}.tsv` first and fills the remaining slots with a seeded random sample (`--seed 42`) of other corpus documents.
+- **In-Memory Token-Based Chunking (`rag_fiqa.chunking`):** Uses the cached `sentence-transformers/all-MiniLM-L6-v2` tokenizer (`CHUNK_SIZE_TOKENS = 256`, `CHUNK_OVERLAP_TOKENS = 32`). Short documents (`~80.8%` of FiQA) stay whole; longer documents split at paragraph, sentence, then word boundaries while preserving exact character offsets (`start_char`, `end_char`).
+- **Embedding & Qdrant Storage (`rag_fiqa.indexing`):** Computes normalized 384-dimensional cosine embeddings and writes chunks and metadata payloads (`chunk_id`, `parent_document_id`, `original_document_ids`, `chunk_index`, `title`, `text`, `token_count`, `start_char`, `end_char`) into persistent local Qdrant at `data/index/fiqa/qdrant` and saves timings and counts to `data/index/fiqa/index_manifest.json`.
 
 ## Logging
 

@@ -29,6 +29,14 @@ CHUNK_SIZE_TOKENS = 256
 CHUNK_OVERLAP_TOKENS = 32
 CHUNK_CORPUS_PATH = PREPARED_DATA_DIR / "corpus_deduplicated.jsonl"
 
+# indexing and vector store settings
+INDEX_DIR = DATA_DIR / "index" / DATASET_NAME
+QDRANT_PATH = INDEX_DIR / "qdrant"
+QDRANT_COLLECTION_NAME = "fiqa_chunks"
+INDEX_MANIFEST_PATH = INDEX_DIR / "index_manifest.json"
+EMBEDDING_BATCH_SIZE = 64
+SUBSET_RANDOM_SEED = 42
+
 # model and artifact settings
 EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_MODEL_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
