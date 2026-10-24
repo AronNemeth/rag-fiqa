@@ -23,3 +23,9 @@ LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
 LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+
+# chunking settings (only based on char length)
+CHUNK_SIZE_CHARS = 800
+CHUNK_OVERLAP_CHARS = 120
+CHUNKS_DIR = DATA_DIR / "chunks" / DATASET_NAME
+CHUNK_CORPUS_PATH = PREPARED_DATA_DIR / "corpus_deduplicated.jsonl"

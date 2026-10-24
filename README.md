@@ -2,6 +2,12 @@
 
 A small financial Q&A RAG application using FiQA-2018.
 
+## Project Structure
+
+- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, etc.) with no CLI side effects on import.
+- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`prepare_data.py`, `chunk_corpus.py`, etc.).
+- `tests/`: Unit tests using fast local fixtures.
+
 ## Setup
 
 From the repository root, install the project and its development dependencies:
@@ -15,7 +21,7 @@ uv sync
 From the repository root, run:
 
 ```bash
-uv run python -m rag_fiqa.prepare_data
+uv run python scripts/prepare_data.py
 ```
 
 This downloads the official [BEIR FiQA archive](https://github.com/beir-cellar/beir/wiki/Datasets-available)
@@ -31,25 +37,39 @@ into `data/raw/fiqa.zip`, verifies BEIR's published MD5 checksum, and writes
 
 Repeated runs reuse the verified archive and regenerate prepared outputs. Conflicting IDs or
 judgments and unknown qrels references fail preparation. Original text is retained without
-HTML stripping or whitespace normalization so future chunk offsets refer to the source text.
+HTML stripping or whitespace normalization so chunk offsets refer to the source text.
 Do not index queries or qrels. When indexing the deduplicated copy, retain and expand
 `original_document_ids` for document-level evaluation against the original qrels.
 
-`prepare_data.py` handles download and preprocessing; vector-store ingestion will be a separate step.
-Logs show progress and record counts without printing source text. Dataset artifacts are ignored by Git.
-Data paths are anchored to the repository root through `rag_fiqa.config`, independently of
-the working directory when using the editable installation.
+## Chunk the corpus
+
+Run the separate chunking step after dataset preparation:
+
+```bash
+uv run python scripts/chunk_corpus.py
+```
+
+Use `--corpus PATH`, `--output-dir PATH`, `--chunk-size INT`, and `--overlap INT` to override defaults.
+
+The default input is `data/processed/fiqa/corpus_deduplicated.jsonl`. Outputs go into
+`data/chunks/fiqa/chunks.jsonl` and `chunking_manifest.json`.
+
+Settings in `rag_fiqa.config` specify a default maximum body length of 800 characters and
+up to 120 characters of overlap. Short documents stay whole. Longer documents prefer paragraph,
+sentence, then word boundaries in the latter half of a window, falling back to the exact character
+limit. Overlap is capped at half the emitted chunk length to ensure progress.
+
+Each chunk stores a deterministic `chunk_id`, `parent_document_id`, `original_document_ids`,
+`chunk_index`, `title`, `text`, and half-open character offsets (`start_char`, `end_char`)
+where `parent_text[start_char:end_char] == text`. During indexing, use `rag_fiqa.chunking.embedding_text(title, text)`
+to form the model input and validate against the model's token limit.
 
 ## Logging
 
-Application entry points configure logging to both the console and `logs/app.log`.
+Application entry points in `scripts/` configure logging to both the console and `logs/app.log`.
 The directory is created automatically under the repository root. Logs append across runs
 and rotate at 5 MiB, retaining three backups (`app.log.1` through `app.log.3`).
 The entire `logs/` directory is ignored by Git.
-
-Logging level, format, file path, and rotation limits are defined in `rag_fiqa.config`.
-Call `setup_logging()` once at each application entry point; importing modules does not
-create log files. Repeated setup replaces existing root handlers.
 
 ## Checks
 
