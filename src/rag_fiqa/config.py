@@ -37,6 +37,11 @@ INDEX_MANIFEST_PATH = INDEX_DIR / "index_manifest.json"
 EMBEDDING_BATCH_SIZE = 64
 SUBSET_RANDOM_SEED = 42
 
+# retrieval and reranking settings
+RETRIEVAL_TOP_K_CHUNKS = 30
+EVAL_TOP_K_DOCUMENTS = 20
+RERANK_TOP_K_CHUNKS = 5
+
 # model and artifact settings
 EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_MODEL_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
