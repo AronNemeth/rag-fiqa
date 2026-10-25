@@ -4,8 +4,8 @@ A small financial Q&A RAG application using FiQA-2018.
 
 ## Project Structure
 
-- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, `indexing`, `retrieval`, `reranking`, `generation`) with no CLI side effects on import.
-- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`download_models.py`, `prepare_data.py`, `build_index.py`).
+- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, `indexing`, `retrieval`, `reranking`, `generation`, `evaluation`) with no CLI side effects on import.
+- `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`download_models.py`, `prepare_data.py`, `build_index.py`, `evaluate.py`).
 - `tests/`: Unit tests using fast local fixtures.
 
 ## Setup
@@ -105,6 +105,30 @@ Query-time candidate selection uses a two-stage retrieve-and-rerank pipeline:
 - **Prompting & Evidence Formatting:** `format_evidence_context()` numbers the top reranked chunks (`[1]`, `[2]`, ...) with their parent document IDs. `SYSTEM_PROMPT` instructs the LLM (`qwen3:4b` via Ollama, with `think=False`, `temperature=0.0`, `num_ctx=2048`, `num_predict=250`) to treat passages strictly as untrusted evidence, preserve caveats/disagreements, and cite every claim inline.
 - **Two-Layer Abstention:** `generate_answer()` abstains before calling Ollama if no chunks are retrieved or if the highest `rerank_score` falls below `MIN_RERANK_SCORE` (`-5.0`). When passages are supplied, the model is instructed to reply with `"Insufficient evidence: ..."` if the context does not answer the question (`is_abstention()`).
 - **Citation Validation:** `extract_and_validate_citations()` parses bracketed citations (`[1]..[N]`), maps valid citation IDs back to source chunk metadata and character offsets, and flags any out-of-range citation IDs in `invalid_citations`.
+
+## 6. Evaluation (`rag_fiqa.evaluation`, `scripts/evaluate.py`)
+
+Run evaluation to benchmark retrieval and assess answer generation quality:
+
+```bash
+# 1. Fast retrieval & reranking evaluation on 100 dev queries (no LLM required)
+uv run python scripts/evaluate.py --split dev --num-queries 100
+
+# 2. End-to-end evaluation with Ollama answer generation on a smaller sample
+uv run python scripts/evaluate.py --split dev --num-queries 20 --with-generation --generation-sample 10
+```
+
+How `scripts/evaluate.py` works:
+
+- **Query Selection & Reproducibility:** Samples judged queries with a fixed seed (`--seed 42`) from the specified split (`--split dev` or `--split test`). Queries whose relevant documents are missing from the index are skipped to avoid penalizing unindexed subsets.
+- **Retrieval & Reranking Comparison:** Computes standard IR metrics at the parent-document level (`Hit@5`, `Recall@5`, `Recall@20`, `nDCG@10`, `MRR@10`) using maximum chunk score deduplication. Both dense retrieval alone and dense retrieval plus reranking are evaluated on the exact same candidate pool, providing a direct ablation and measuring stage latency in milliseconds per query.
+- **Automated Generation & Grounding Checks:** When `--with-generation` is enabled, the generator runs on the top reranked chunks and computes automated quality metrics without requiring a paid LLM judge:
+  - `citation_validity_rate`: Proportion of answers where all cited IDs exist among the provided evidence chunks.
+  - `citation_presence_rate`: Proportion of non-abstained answers containing at least one inline citation.
+  - `gold_citation_rate`: When a known relevant document was retrieved in the context, whether the model actually cited it.
+  - `abstention_rate`: Frequency of insufficient-evidence responses.
+  - `withholding_check` (optional via `--withholding-check`): Tests whether the model abstains when provided with mismatched context.
+- **Artifacts:** Writes `eval_summary.json` (aggregate metrics, settings, query IDs), `eval_per_query.json` (per-query rankings and timings), and `eval_generations.json` (answers, citations, and manual scoring rubric template for `correctness`, `support`, and `clarity`).
 
 ## Logging
 
