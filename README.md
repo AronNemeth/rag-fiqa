@@ -4,7 +4,7 @@ A small financial Q&A RAG application using FiQA-2018.
 
 ## Project Structure
 
-- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, `indexing`, `retrieval`, `reranking`) with no CLI side effects on import.
+- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, `indexing`, `retrieval`, `reranking`, `generation`) with no CLI side effects on import.
 - `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`download_models.py`, `prepare_data.py`, `build_index.py`).
 - `tests/`: Unit tests using fast local fixtures.
 
@@ -99,6 +99,12 @@ Query-time candidate selection uses a two-stage retrieve-and-rerank pipeline:
   - `deduplicate_to_parent_documents()` maps chunks back to `original_document_ids` and assigns each parent document its maximum chunk score (`EVAL_TOP_K_DOCUMENTS = 20`) for document-level BEIR evaluation.
 - **Stage 2 — Cross-Encoder Reranking (`rag_fiqa.reranking`):**
   - `rerank_chunks()` pairs the question with each retrieved chunk and scores them jointly using `cross-encoder/ms-marco-MiniLM-L6-v2` (`load_reranker_model()`), preserving first-stage `retrieval_score`/`retrieval_rank` while sorting by `rerank_score` to select the top `RERANK_TOP_K_CHUNKS` (`5`) evidence chunks for answer generation.
+
+## 5. Grounded Answer Generation (`rag_fiqa.generation`)
+
+- **Prompting & Evidence Formatting:** `format_evidence_context()` numbers the top reranked chunks (`[1]`, `[2]`, ...) with their parent document IDs. `SYSTEM_PROMPT` instructs the LLM (`qwen3:4b` via Ollama, with `think=False`, `temperature=0.0`, `num_ctx=2048`, `num_predict=250`) to treat passages strictly as untrusted evidence, preserve caveats/disagreements, and cite every claim inline.
+- **Two-Layer Abstention:** `generate_answer()` abstains before calling Ollama if no chunks are retrieved or if the highest `rerank_score` falls below `MIN_RERANK_SCORE` (`-5.0`). When passages are supplied, the model is instructed to reply with `"Insufficient evidence: ..."` if the context does not answer the question (`is_abstention()`).
+- **Citation Validation:** `extract_and_validate_citations()` parses bracketed citations (`[1]..[N]`), maps valid citation IDs back to source chunk metadata and character offsets, and flags any out-of-range citation IDs in `invalid_citations`.
 
 ## Logging
 
