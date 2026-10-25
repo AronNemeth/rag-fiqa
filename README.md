@@ -4,7 +4,7 @@ A small financial Q&A RAG application using FiQA-2018.
 
 ## Project Structure
 
-- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, `indexing`) with no CLI side effects on import.
+- `src/rag_fiqa/`: Reusable library modules (`config`, `utils`, `data`, `chunking`, `models`, `indexing`, `retrieval`, `reranking`) with no CLI side effects on import.
 - `scripts/`: Orchestrator entry-point scripts for running individual pipeline stages (`download_models.py`, `prepare_data.py`, `build_index.py`).
 - `tests/`: Unit tests using fast local fixtures.
 
@@ -88,6 +88,17 @@ How `scripts/build_index.py` works:
 - **Optional Reproducible Subset (`--subset-size N`):** When specified, retains known positively judged documents from `qrels/{dev,test}.tsv` first and fills the remaining slots with a seeded random sample (`--seed 42`) of other corpus documents.
 - **In-Memory Token-Based Chunking (`rag_fiqa.chunking`):** Uses the cached `sentence-transformers/all-MiniLM-L6-v2` tokenizer (`CHUNK_SIZE_TOKENS = 256`, `CHUNK_OVERLAP_TOKENS = 32`). Short documents (`~80.8%` of FiQA) stay whole; longer documents split at paragraph, sentence, then word boundaries while preserving exact character offsets (`start_char`, `end_char`).
 - **Embedding & Qdrant Storage (`rag_fiqa.indexing`):** Computes normalized 384-dimensional cosine embeddings and writes chunks and metadata payloads (`chunk_id`, `parent_document_id`, `original_document_ids`, `chunk_index`, `title`, `text`, `token_count`, `start_char`, `end_char`) into persistent local Qdrant at `data/index/fiqa/qdrant` and saves timings and counts to `data/index/fiqa/index_manifest.json`.
+
+## 4. Retrieval and Reranking (`rag_fiqa.retrieval`, `rag_fiqa.reranking`)
+
+Query-time candidate selection uses a two-stage retrieve-and-rerank pipeline:
+
+- **Stage 1 — Dense Bi-Encoder Retrieval (`rag_fiqa.retrieval`):**
+  - `open_vector_store()` opens the local Qdrant collection and verifies it is populated.
+  - `retrieve_chunks()` normalizes the user question, encodes it with `sentence-transformers/all-MiniLM-L6-v2`, and queries Qdrant for the top `RETRIEVAL_TOP_K_CHUNKS` (`30`) candidate chunks by cosine similarity.
+  - `deduplicate_to_parent_documents()` maps chunks back to `original_document_ids` and assigns each parent document its maximum chunk score (`EVAL_TOP_K_DOCUMENTS = 20`) for document-level BEIR evaluation.
+- **Stage 2 — Cross-Encoder Reranking (`rag_fiqa.reranking`):**
+  - `rerank_chunks()` pairs the question with each retrieved chunk and scores them jointly using `cross-encoder/ms-marco-MiniLM-L6-v2` (`load_reranker_model()`), preserving first-stage `retrieval_score`/`retrieval_rank` while sorting by `rerank_score` to select the top `RERANK_TOP_K_CHUNKS` (`5`) evidence chunks for answer generation.
 
 ## Logging
 
