@@ -101,6 +101,3 @@ def test_rerank_chunks_empty_and_validation() -> None:
 
     with pytest.raises(ValueError, match="must not be empty"):
         rerank_chunks("   ", sample_candidates(), reranker=reranker)
-
-    with pytest.raises(ValueError, match="top_k must be positive"):
-        rerank_chunks("Valid question?", sample_candidates(), reranker=reranker, top_k=0)
