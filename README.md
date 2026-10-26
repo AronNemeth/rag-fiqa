@@ -28,7 +28,7 @@ By default, this script:
 
 - Downloads the embedding model (`sentence-transformers/all-MiniLM-L6-v2`, revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`) and reranker model (`cross-encoder/ms-marco-MiniLM-L6-v2`, revision `233902d25c440f23af6f7d6e94d2946bac0bee0a`) via the Hugging Face Hub API (`snapshot_download`), skipping redundant non-PyTorch weights.
 - Stores Hugging Face snapshots in the standard Hugging Face cache (`~/.cache/huggingface/hub` by default, or configurable via `HF_HOME`, `HF_HUB_CACHE`, or `--cache-dir PATH`). Model weights are never copied into the repository.
-- Pulls the default generation model (`qwen3:4b`) through the Ollama CLI (`ollama pull qwen3:4b`). Requires the `ollama` CLI and a running Ollama daemon (`ollama serve`).
+- Pulls the default generation model (`qwen3:1.7b`) through the Ollama CLI (`ollama pull qwen3:1.7b`). Requires the `ollama` CLI and a running Ollama daemon (`ollama serve`).
 - Writes a reproducibility manifest to `data/models/models_manifest.json` recording the pinned model IDs, Git revisions, resolved snapshot paths, and Ollama model digest.
 
 Useful options for selective or constrained environments:
@@ -39,9 +39,6 @@ uv run python scripts/download_models.py --hf-role embedding --skip-ollama
 
 # Use a custom Hugging Face cache directory
 uv run python scripts/download_models.py --cache-dir /path/to/hf_cache
-
-# Pull the smaller fallback generation model explicitly
-uv run python scripts/download_models.py --generation-model qwen2.5:3b
 ```
 
 Repeated runs reuse cached Hugging Face snapshots and Ollama layers without re-downloading.
@@ -102,7 +99,7 @@ Query-time candidate selection uses a two-stage retrieve-and-rerank pipeline:
 
 ## 5. Grounded Answer Generation (`rag_fiqa.generation`)
 
-- **Prompting & Evidence Formatting:** `format_evidence_context()` numbers the top reranked chunks (`[1]`, `[2]`, ...) with their parent document IDs. `SYSTEM_PROMPT` instructs the LLM (`qwen3:4b` via Ollama, with `think=False`, `temperature=0.0`, `num_ctx=2048`, `num_predict=250`) to treat passages strictly as untrusted evidence, preserve caveats/disagreements, and cite every claim inline.
+- **Prompting & Evidence Formatting:** `format_evidence_context()` numbers the top reranked chunks (`[1]`, `[2]`, ...) with their parent document IDs. `SYSTEM_PROMPT` instructs the LLM (`qwen3:1.7b` via Ollama, with `think=False`, `temperature=0.0`, `num_ctx=2048`, `num_predict=250`) to treat passages strictly as untrusted evidence, preserve caveats/disagreements, and cite every claim inline.
 - **Two-Layer Abstention:** `generate_answer()` abstains before calling Ollama if no chunks are retrieved or if the highest `rerank_score` falls below `MIN_RERANK_SCORE` (`-5.0`). When passages are supplied, the model is instructed to reply with `"Insufficient evidence: ..."` if the context does not answer the question (`is_abstention()`).
 - **Citation Validation:** `extract_and_validate_citations()` parses bracketed citations (`[1]..[N]`), maps valid citation IDs back to source chunk metadata and character offsets, and flags any out-of-range citation IDs in `invalid_citations`.
 
