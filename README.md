@@ -137,6 +137,30 @@ How `scripts/evaluate.py` works:
   - `hallucination_rate`: Percentage of ungrounded responses produced despite absent evidence.
 - **Artifacts:** Writes `eval_summary.json` (or `eval_abstention_summary.json`), `eval_per_query.json` (or `eval_abstention_records.json`), and `eval_generations.json` (answers, citations, and manual scoring rubric template for `correctness`, `support`, and `clarity`).
 
+## 7. API Serving (`rag_fiqa.api`, `scripts/serve_api.py`)
+
+Launch the FastAPI backend server to serve the financial Q&A application:
+
+```bash
+# Start server on default port 8000
+uv run python scripts/serve_api.py
+
+# Or run with custom port and auto-reload for development
+uv run python scripts/serve_api.py --port 8000 --reload
+```
+
+Endpoints:
+
+- **`GET /health`:** Readiness probe checking connectivity to local Qdrant (verifying points count) and Ollama (verifying target model availability). Returns `200 OK` or `503 Service Unavailable`.
+- **`GET /info`:** Exposes active model IDs, revisions, retrieval settings, and corpus path.
+- **`POST /ask`:** Executes retrieve-rerank-generate pipeline:
+  ```bash
+  curl -X POST http://localhost:8000/ask \
+    -H "Content-Type: application/json" \
+    -d '{"question": "What is the difference between a traditional and Roth IRA?"}'
+  ```
+  Response returns the grounded answer, inline citation mapping, parent document IDs, abstention status, and stage latencies (`retrieval_ms`, `rerank_ms`, `generation_ms`, `total_ms`).
+
 ## Logging
 
 Application entry points in `scripts/` configure logging to both the console and `logs/app.log`.

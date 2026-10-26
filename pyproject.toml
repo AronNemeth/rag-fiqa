@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "fastapi>=0.115.0",
     "huggingface-hub>=2.2.0",
     "ollama>=0.6.3",
     "pandas>=3.0.6",
@@ -12,6 +13,7 @@ dependencies = [
     "sentence-transformers>=6.2.0",
     "tqdm>=4.66.0",
     "transformers>=5.20.1",
+    "uvicorn>=0.34.0",
 ]
 
 [dependency-groups]
