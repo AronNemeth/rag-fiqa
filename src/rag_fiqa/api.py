@@ -186,8 +186,17 @@ def create_app(
         ollama_status: dict[str, Any] = {}
         try:
             available_models = request.app.state.ollama_client.list()
-            raw_list = available_models.get("models", []) if isinstance(available_models, dict) else []
-            model_names = [m["name"] if isinstance(m, dict) else getattr(m, "model", "") for m in raw_list]
+            raw_models = getattr(available_models, "models", None) or (
+                available_models.get("models", []) if isinstance(available_models, dict) else []
+            )
+            model_names: list[str] = []
+            for item in raw_models:
+                name = getattr(item, "model", None) or (
+                    item.get("name") or item.get("model") if isinstance(item, dict) else str(item)
+                )
+                if name:
+                    model_names.append(str(name))
+
             has_model = any(GENERATION_MODEL_NAME in name for name in model_names)
             ollama_status = {
                 "status": "connected",

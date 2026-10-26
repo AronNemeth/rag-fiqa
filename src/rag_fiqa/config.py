@@ -83,5 +83,10 @@ MIN_RERANK_SCORE = -5.0
 # api and serving settings
 API_HOST = "0.0.0.0"
 API_PORT = 8000
+API_BASE_URL = f"http://localhost:{API_PORT}"
 API_TITLE = "FiQA Financial Q&A RAG API"
 API_VERSION = "0.1.0"
+
+# ui settings
+UI_HOST = "0.0.0.0"
+UI_PORT = 8501

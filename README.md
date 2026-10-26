@@ -161,6 +161,35 @@ Endpoints:
   ```
   Response returns the grounded answer, inline citation mapping, parent document IDs, abstention status, and stage latencies (`retrieval_ms`, `rerank_ms`, `generation_ms`, `total_ms`).
 
+## 8. Web Demonstration UI (`rag_fiqa.ui`, `scripts/run_app.py`, `scripts/serve_ui.py`)
+
+Launch the demonstration interface to explore answers, inspect evidence citations, and observe abstention behaviors:
+
+```bash
+# Quickest option: unified 1-command launcher (starts API, waits for health check, and opens Streamlit)
+uv run python scripts/run_app.py
+
+# Alternatively, start the services in separate terminals:
+# Terminal 1:
+uv run python scripts/serve_api.py
+
+# Terminal 2:
+uv run python scripts/serve_ui.py
+```
+
+UI Features:
+
+- **Strict Client-Server Decoupling:** Connects to FastAPI via HTTP (`POST /ask`, `GET /health`); the UI contains no vector store or neural model instances.
+- **Backend Health Badge:** Displays real-time status of the local Qdrant collection (chunk count) and Ollama generation model.
+- **One-Click Demo Presets:** Includes 4 curated queries demonstrating key capabilities:
+  1. *Factual Grounding:* Traditional vs. Roth IRA (grounded response with inline citations `[1]`, `[2]`).
+  2. *Conditional Tax Rules:* Capital gains on mutual funds (preservation of caveats and conditions).
+  3. *Safe Pre-LLM Abstention:* Cooking Cookie Monster Cookies (reranker score gate triggers `< MIN_RERANK_SCORE` in $<100\text{ms}$).
+  4. *Safe LLM Abstention:* Federal income tax abolished in 2015 (refusal to hallucinate on a false premise).
+- **Evidence & Citation Inspector:** Expandable accordion displaying source chunk excerpts, parent document IDs, and both cross-encoder rerank scores and bi-encoder cosine scores.
+- **Latency Breakdown:** Real-time metrics for dense retrieval, cross-encoder reranking, and Ollama generation.
+- **Interactive Tuning:** Sidebar sliders allow dynamically adjusting retrieval top-$k$, rerank top-$k$, and minimum score threshold.
+
 ## Logging
 
 Application entry points in `scripts/` configure logging to both the console and `logs/app.log`.
