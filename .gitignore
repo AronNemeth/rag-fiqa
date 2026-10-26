@@ -222,7 +222,10 @@ __marimo__/
 # agents
 AGENTS.md
 # Downloaded datasets and generated data artifacts
-/data/
+/data/*
+!/data/eval/
+/data/eval/*
+!/data/eval/abstention_queries.json
 
 # Application logs, including rotated backups
 /logs/

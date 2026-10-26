@@ -12,10 +12,13 @@ from typing import Any
 from ollama import Client
 from qdrant_client import QdrantClient
 from sentence_transformers import CrossEncoder, SentenceTransformer
+from tqdm import tqdm
 
 from rag_fiqa.config import (
+    ABSTENTION_QUERIES_PATH,
     EVAL_TOP_K_DOCUMENTS,
     GENERATION_MODEL_NAME,
+    MIN_RERANK_SCORE,
     QDRANT_COLLECTION_NAME,
     RERANK_TOP_K_CHUNKS,
     RETRIEVAL_TOP_K_CHUNKS,
@@ -50,6 +53,27 @@ def load_qrels(path: Path) -> dict[str, dict[str, int]]:
             if score > 0:
                 qrels.setdefault(row["query-id"], {})[row["corpus-id"]] = score
     return qrels
+
+
+def load_abstention_queries(path: Path | None = None) -> list[dict[str, Any]]:
+    """Load the out-of-domain and unanswerable evaluation queries.
+
+    Raises:
+        FileNotFoundError: If the specified query file does not exist.
+        ValueError: If the query file is empty or missing required keys.
+    """
+    target_path = path or ABSTENTION_QUERIES_PATH
+    if not target_path.exists():
+        raise FileNotFoundError(f"Abstention query file not found at: {target_path}")
+
+    records = json.loads(target_path.read_text(encoding="utf-8"))
+    if not isinstance(records, list) or not records:
+        raise ValueError(f"Abstention queries file at {target_path} must be a non-empty list.")
+
+    for item in records:
+        if not isinstance(item, dict) or "query_id" not in item or "question" not in item:
+            raise ValueError(f"Invalid record in abstention queries: {item}")
+    return records
 
 
 def get_indexed_document_ids(client: QdrantClient, collection_name: str = QDRANT_COLLECTION_NAME) -> set[str]:
@@ -159,6 +183,7 @@ def evaluate_retrieval(
     rerank_top_k: int = RERANK_TOP_K_CHUNKS,
     doc_top_k: int = EVAL_TOP_K_DOCUMENTS,
     collection_name: str = QDRANT_COLLECTION_NAME,
+    show_progress: bool = True,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     """Compare dense retrieval alone with dense retrieval plus reranking.
 
@@ -170,7 +195,8 @@ def evaluate_retrieval(
     """
     records: list[dict[str, Any]] = []
     contexts: dict[str, list[dict[str, Any]]] = {}
-    for position, query in enumerate(eval_queries, start=1):
+    iterator = tqdm(eval_queries, desc="Evaluating retrieval", unit="query", disable=not show_progress)
+    for position, query in enumerate(iterator, start=1):
         start = time.perf_counter()
         candidates = retrieve_chunks(
             query["question"], qdrant_client, embedding_model, top_k=retrieval_top_k, collection_name=collection_name
@@ -196,7 +222,7 @@ def evaluate_retrieval(
             }
         )
         contexts[query["query_id"]] = reranked[:rerank_top_k]
-        if position % 50 == 0:
+        if not show_progress and position % 50 == 0:
             logger.info("Evaluated retrieval for %d/%d queries", position, len(eval_queries))
 
     summary = {
@@ -235,6 +261,7 @@ def evaluate_generation(
     ollama_client: Client | None = None,
     model_name: str = GENERATION_MODEL_NAME,
     withholding_check: bool = False,
+    show_progress: bool = True,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Generate answers for sampled queries and compute automated grounding checks.
 
@@ -247,7 +274,8 @@ def evaluate_generation(
         RuntimeError: If Ollama is unavailable.
     """
     records: list[dict[str, Any]] = []
-    for position, query in enumerate(sample_queries):
+    iterator = tqdm(sample_queries, desc=f"Generating answers ({model_name})", unit="query", disable=not show_progress)
+    for position, query in enumerate(iterator):
         gold = set(query["gold"])
         chunks = contexts[query["query_id"]]
         result = generate_answer(query["question"], chunks, model_name=model_name, client=ollama_client)
@@ -286,7 +314,12 @@ def evaluate_generation(
             record["withheld_context_abstained"] = withheld["abstained"]
 
         records.append(record)
-        logger.info("Generated answer %d/%d (%.1fs)", position + 1, len(sample_queries), result["generation_seconds"])
+        if show_progress:
+            iterator.set_postfix(last_sec=f"{result['generation_seconds']:.1f}s")
+        else:
+            logger.info(
+                "Generated answer %d/%d (%.1fs)", position + 1, len(sample_queries), result["generation_seconds"]
+            )
 
     if withholding_check and len(sample_queries) < 2:
         logger.warning("Withholding check needs at least two sampled queries; skipped")
@@ -322,4 +355,144 @@ def format_retrieval_table(summary: dict[str, Any]) -> str:
             f"| {label} | {m['hit@5']:.3f} | {m['recall@5']:.3f} | {m['recall@20']:.3f} | "
             f"{m['ndcg@10']:.3f} | {m['mrr@10']:.3f} | {pipeline['mean_latency_ms']:.0f} |"
         )
+    return "\n".join(lines)
+
+
+def evaluate_abstention(
+    queries: list[dict[str, Any]],
+    qdrant_client: QdrantClient,
+    embedding_model: SentenceTransformer,
+    reranker: CrossEncoder,
+    ollama_client: Client | None = None,
+    model_name: str = GENERATION_MODEL_NAME,
+    retrieval_top_k: int = RETRIEVAL_TOP_K_CHUNKS,
+    rerank_top_k: int = RERANK_TOP_K_CHUNKS,
+    min_rerank_score: float = MIN_RERANK_SCORE,
+    collection_name: str = QDRANT_COLLECTION_NAME,
+    show_progress: bool = True,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Evaluate pipeline abstention on out-of-domain and unanswerable queries.
+
+    Checks both the pre-LLM reranker score gate and the generator's refusal
+    behavior when evidence is absent or irrelevant.
+
+    Returns:
+        A tuple of (summary_dict, per_query_records).
+    """
+    records: list[dict[str, Any]] = []
+    iterator = tqdm(queries, desc=f"Evaluating abstention ({model_name})", unit="query", disable=not show_progress)
+    for query in iterator:
+        start_time = time.perf_counter()
+        candidates = retrieve_chunks(
+            query["question"], qdrant_client, embedding_model, top_k=retrieval_top_k, collection_name=collection_name
+        )
+        reranked = rerank_chunks(query["question"], candidates, reranker, top_k=None)
+        top_chunks = reranked[:rerank_top_k]
+        max_score = max((float(c["rerank_score"]) for c in top_chunks if "rerank_score" in c), default=None)
+
+        result = generate_answer(
+            query["question"],
+            top_chunks,
+            model_name=model_name,
+            client=ollama_client,
+            min_rerank_score=min_rerank_score,
+        )
+        elapsed = time.perf_counter() - start_time
+
+        pre_llm_gated = result["abstention_reason"] in PRE_LLM_ABSTENTION_REASONS
+        llm_called = result["abstention_reason"] not in PRE_LLM_ABSTENTION_REASONS
+        llm_abstained = result["abstention_reason"] == "model_abstained"
+        abstained = result["abstained"]
+        hallucinated = not abstained
+
+        record: dict[str, Any] = {
+            "query_id": query["query_id"],
+            "category": query.get("category", "unspecified"),
+            "question": query["question"],
+            "notes": query.get("notes", ""),
+            "max_rerank_score": round(max_score, 3) if max_score is not None else None,
+            "abstained": abstained,
+            "abstention_reason": result["abstention_reason"],
+            "pre_llm_gated": pre_llm_gated,
+            "llm_called": llm_called,
+            "llm_abstained": llm_abstained,
+            "hallucinated": hallucinated,
+            "answer": result["answer"],
+            "citations": [c["citation_id"] for c in result["citations"]],
+            "invalid_citations": result["invalid_citations"],
+            "generation_seconds": result["generation_seconds"],
+            "total_latency_seconds": round(elapsed, 3),
+            "top_chunks": [
+                {
+                    "chunk_id": c["chunk_id"],
+                    "parent_document_id": c["parent_document_id"],
+                    "rerank_score": round(float(c["rerank_score"]), 3) if "rerank_score" in c else None,
+                    "text": c["text"][:150] + ("..." if len(c["text"]) > 150 else ""),
+                }
+                for c in top_chunks
+            ],
+        }
+        records.append(record)
+        if show_progress:
+            iterator.set_postfix(abstained=str(abstained), pre_gated=str(pre_llm_gated))
+
+    categories = sorted({r["category"] for r in records})
+    category_breakdown: dict[str, Any] = {}
+    for cat in categories:
+        cat_records = [r for r in records if r["category"] == cat]
+        cat_llm_called = [r for r in cat_records if r["llm_called"]]
+        category_breakdown[cat] = {
+            "num_queries": len(cat_records),
+            "pre_llm_abstention_count": sum(r["pre_llm_gated"] for r in cat_records),
+            "llm_abstention_count": sum(r["llm_abstained"] for r in cat_records),
+            "total_abstention_count": sum(r["abstained"] for r in cat_records),
+            "hallucination_count": sum(r["hallucinated"] for r in cat_records),
+            "total_abstention_rate": _rate([r["abstained"] for r in cat_records]),
+            "pre_llm_abstention_rate": _rate([r["pre_llm_gated"] for r in cat_records]),
+            "llm_abstention_rate": _rate([r["llm_abstained"] for r in cat_llm_called]),
+            "hallucination_rate": _rate([r["hallucinated"] for r in cat_records]),
+        }
+
+    llm_called_records = [r for r in records if r["llm_called"]]
+    summary = {
+        "num_queries": len(records),
+        "model": model_name,
+        "min_rerank_score": min_rerank_score,
+        "pre_llm_abstention_count": sum(r["pre_llm_gated"] for r in records),
+        "llm_abstention_count": sum(r["llm_abstained"] for r in records),
+        "total_abstention_count": sum(r["abstained"] for r in records),
+        "hallucination_count": sum(r["hallucinated"] for r in records),
+        "total_abstention_rate": _rate([r["abstained"] for r in records]),
+        "pre_llm_abstention_rate": _rate([r["pre_llm_gated"] for r in records]),
+        "llm_abstention_rate": _rate([r["llm_abstained"] for r in llm_called_records]),
+        "hallucination_rate": _rate([r["hallucinated"] for r in records]),
+        "mean_latency_seconds": round(mean(r["total_latency_seconds"] for r in records), 3) if records else None,
+        "categories": category_breakdown,
+    }
+    return summary, records
+
+
+def format_abstention_table(summary: dict[str, Any]) -> str:
+    """Render the abstention evaluation breakdown as a Markdown table."""
+    lines = [
+        "| Category | Queries | Pre-LLM Gated | LLM Abstained | Total Abstained | Hallucinated | Abstention Rate |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for cat, stats in summary.get("categories", {}).items():
+        rate_str = (
+            f"{stats['total_abstention_rate'] * 100:.1f}%" if stats["total_abstention_rate"] is not None else "N/A"
+        )
+        lines.append(
+            f"| {cat} | {stats['num_queries']} | {stats['pre_llm_abstention_count']} | "
+            f"{stats['llm_abstention_count']} | {stats['total_abstention_count']} | "
+            f"{stats['hallucination_count']} | {rate_str} |"
+        )
+    total_rate_str = (
+        f"{summary['total_abstention_rate'] * 100:.1f}%" if summary.get("total_abstention_rate") is not None else "N/A"
+    )
+    lines.append(
+        f"| **Overall** | **{summary['num_queries']}** | **{summary['pre_llm_abstention_count']}** | "
+        f"**{summary['llm_abstention_count']}** | **{summary['total_abstention_count']}** | "
+        f"**{summary['hallucination_count']}** | **{total_rate_str}** |"
+    )
     return "\n".join(lines)

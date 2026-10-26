@@ -108,7 +108,7 @@ Query-time candidate selection uses a two-stage retrieve-and-rerank pipeline:
 
 ## 6. Evaluation (`rag_fiqa.evaluation`, `scripts/evaluate.py`)
 
-Run evaluation to benchmark retrieval and assess answer generation quality:
+Run evaluation to benchmark retrieval, assess answer generation quality, or test safe abstention:
 
 ```bash
 # 1. Fast retrieval & reranking evaluation on 100 dev queries (no LLM required)
@@ -116,10 +116,15 @@ uv run python scripts/evaluate.py --split dev --num-queries 100
 
 # 2. End-to-end evaluation with Ollama answer generation on a smaller sample
 uv run python scripts/evaluate.py --split dev --num-queries 20 --with-generation --generation-sample 10
+
+# 3. Dedicated abstention evaluation on 20 out-of-domain and unanswerable queries
+uv run python scripts/evaluate.py --abstention-only
 ```
 
 How `scripts/evaluate.py` works:
 
+- **Terminal Progress (`tqdm`):** Interactive runs display real-time progress bars with per-query throughput and generation latency (disable with `--no-progress` in CI/batch scripts).
+- **Run Timestamping & History:** Outputs are saved to a unique timestamped directory `data/eval/fiqa/<split>/<YYYYMMDD_HHMMSS>/` (or with an optional `--run-name label`), and simultaneously updated in `latest/` to preserve historical run comparisons.
 - **Query Selection & Reproducibility:** Samples judged queries with a fixed seed (`--seed 42`) from the specified split (`--split dev` or `--split test`). Queries whose relevant documents are missing from the index are skipped to avoid penalizing unindexed subsets.
 - **Retrieval & Reranking Comparison:** Computes standard IR metrics at the parent-document level (`Hit@5`, `Recall@5`, `Recall@20`, `nDCG@10`, `MRR@10`) using maximum chunk score deduplication. Both dense retrieval alone and dense retrieval plus reranking are evaluated on the exact same candidate pool, providing a direct ablation and measuring stage latency in milliseconds per query.
 - **Automated Generation & Grounding Checks:** When `--with-generation` is enabled, the generator runs on the top reranked chunks and computes automated quality metrics without requiring a paid LLM judge:
@@ -128,7 +133,12 @@ How `scripts/evaluate.py` works:
   - `gold_citation_rate`: When a known relevant document was retrieved in the context, whether the model actually cited it.
   - `abstention_rate`: Frequency of insufficient-evidence responses.
   - `withholding_check` (optional via `--withholding-check`): Tests whether the model abstains when provided with mismatched context.
-- **Artifacts:** Writes `eval_summary.json` (aggregate metrics, settings, query IDs), `eval_per_query.json` (per-query rankings and timings), and `eval_generations.json` (answers, citations, and manual scoring rubric template for `correctness`, `support`, and `clarity`).
+- **Abstention Suite (`--abstention-only`):** Evaluates a curated set of 20 unanswerable queries across 4 distinct failure modes (`out_of_domain`, `future_or_post_corpus`, `false_premise`, and `missing_information`). Reports:
+  - `pre_llm_abstention_rate`: Queries safely rejected before calling Ollama because candidate chunk scores fell below `MIN_RERANK_SCORE`.
+  - `llm_abstention_rate`: Queries reaching the LLM where the model explicitly refused to answer due to insufficient evidence.
+  - `total_abstention_rate`: Combined proportion of unanswerable queries safely handled without guessing.
+  - `hallucination_rate`: Percentage of ungrounded responses produced despite absent evidence.
+- **Artifacts:** Writes `eval_summary.json` (or `eval_abstention_summary.json`), `eval_per_query.json` (or `eval_abstention_records.json`), and `eval_generations.json` (answers, citations, and manual scoring rubric template for `correctness`, `support`, and `clarity`).
 
 ## Logging
 

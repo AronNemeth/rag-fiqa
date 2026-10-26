@@ -1,0 +1,122 @@
+[
+  {
+    "query_id": "abs_01",
+    "category": "out_of_domain",
+    "question": "How do you bake a traditional sourdough bread from scratch?",
+    "notes": "Non-financial culinary question with no relevant concepts in FiQA corpus."
+  },
+  {
+    "query_id": "abs_02",
+    "category": "out_of_domain",
+    "question": "What is the capital city of France and what is its current population?",
+    "notes": "General geography question outside the financial domain."
+  },
+  {
+    "query_id": "abs_03",
+    "category": "out_of_domain",
+    "question": "How do photosynthesis and cellular respiration interact in plant leaves?",
+    "notes": "Biological science topic with no relevance to financial Q&A."
+  },
+  {
+    "query_id": "abs_04",
+    "category": "out_of_domain",
+    "question": "What are the rules of standard chess regarding en passant and castling?",
+    "notes": "Board game rules query completely out of corpus domain."
+  },
+  {
+    "query_id": "abs_05",
+    "category": "out_of_domain",
+    "question": "Who directed the 1994 film The Shawshank Redemption?",
+    "notes": "Cinema history question completely outside financial topics."
+  },
+  {
+    "query_id": "abs_06",
+    "category": "future_or_post_corpus",
+    "question": "What was Apple's closing stock price on December 31, 2035?",
+    "notes": "Future stock price event that cannot exist in any historical corpus."
+  },
+  {
+    "query_id": "abs_07",
+    "category": "future_or_post_corpus",
+    "question": "How did the 2032 global economic recession affect commercial real estate in New York?",
+    "notes": "Hypothetical future economic event with no historical evidence."
+  },
+  {
+    "query_id": "abs_08",
+    "category": "future_or_post_corpus",
+    "question": "What were Tesla's total quarterly vehicle deliveries and revenue in Q4 2028?",
+    "notes": "Unreported future corporate quarterly earnings figures."
+  },
+  {
+    "query_id": "abs_09",
+    "category": "future_or_post_corpus",
+    "question": "What tax brackets were enacted by the US Congress for the fiscal year 2040?",
+    "notes": "Future legislative tax brackets that do not exist in the corpus."
+  },
+  {
+    "query_id": "abs_10",
+    "category": "future_or_post_corpus",
+    "question": "What was the price of Bitcoin at 12:00 UTC on January 1, 2030?",
+    "notes": "Future cryptocurrency price query impossible to answer from historical data."
+  },
+  {
+    "query_id": "abs_11",
+    "category": "false_premise",
+    "question": "Why did the US government completely abolish all federal income taxes in 2015?",
+    "notes": "Premise is factually false; income tax was not abolished."
+  },
+  {
+    "query_id": "abs_12",
+    "category": "false_premise",
+    "question": "How can an individual legally avoid paying capital gains tax by claiming a pet as a corporate director?",
+    "notes": "Premise describes an absurd, illegal tax loophole not supported by law or corpus."
+  },
+  {
+    "query_id": "abs_13",
+    "category": "false_premise",
+    "question": "Why did the Federal Reserve set the federal funds interest rate to negative 50% in 2017?",
+    "notes": "Premise is false; Fed rates have never been -50%."
+  },
+  {
+    "query_id": "abs_14",
+    "category": "false_premise",
+    "question": "What are the steps to convert a standard 401(k) into physical gold without reporting it to the IRS?",
+    "notes": "Premise is misleading and illicit; IRS reporting is mandatory."
+  },
+  {
+    "query_id": "abs_15",
+    "category": "false_premise",
+    "question": "When did NASDAQ merge with the Tokyo Stock Exchange to form a single cross-border entity?",
+    "notes": "False premise regarding a non-existent corporate exchange merger."
+  },
+  {
+    "query_id": "abs_16",
+    "category": "missing_information",
+    "question": "What was the exact personal net worth of John Doe from Cleveland, Ohio in 2016?",
+    "notes": "Specific private individual financial data absent from the FiQA corpus."
+  },
+  {
+    "query_id": "abs_17",
+    "category": "missing_information",
+    "question": "What is the private employee internal salary band for senior software engineers at Acme Financial Corp?",
+    "notes": "Proprietary internal company salary structure not in corpus."
+  },
+  {
+    "query_id": "abs_18",
+    "category": "missing_information",
+    "question": "What secret discount code gives a 50% permanent waiver on Vanguard ETF management expense ratios?",
+    "notes": "Fabricated discount mechanism for public mutual funds/ETFs."
+  },
+  {
+    "query_id": "abs_19",
+    "category": "missing_information",
+    "question": "What was the exact weather in Omaha on the day Warren Buffett bought his first Berkshire Hathaway share?",
+    "notes": "Irrelevant meteorological trivia absent from financial investment corpus."
+  },
+  {
+    "query_id": "abs_20",
+    "category": "missing_information",
+    "question": "Which specific bank branch in Lisbon has the lowest ATM foreign transaction fee for tourists?",
+    "notes": "Hyper-local European retail branch fee data absent from FiQA."
+  }
+]

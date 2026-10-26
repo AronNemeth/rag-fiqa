@@ -1,14 +1,22 @@
 import math
+from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from rag_fiqa.evaluation import (
     aggregate_metrics,
     compute_ranking_metrics,
+    evaluate_abstention,
     evaluate_generation,
+    format_abstention_table,
+    load_abstention_queries,
     select_eval_queries,
 )
+from rag_fiqa.indexing import chunk_id_to_uuid
 
 
 def test_ranking_metrics_match_plan_example() -> None:
@@ -102,3 +110,153 @@ def test_evaluate_generation_computes_grounding_checks_and_withholding() -> None
     assert summary["withheld_context_abstention_rate"] == 1.0
     assert records[0]["context"][0]["is_gold"] is True
     assert records[0]["manual_review"]["correctness_0_2"] is None
+
+
+def test_load_abstention_queries() -> None:
+    queries = load_abstention_queries()
+    assert len(queries) == 20
+    categories = {q["category"] for q in queries}
+    assert categories == {"out_of_domain", "future_or_post_corpus", "false_premise", "missing_information"}
+    for item in queries:
+        assert item["query_id"].startswith("abs_")
+        assert len(item["question"].strip()) > 10
+
+    with pytest.raises(FileNotFoundError):
+        load_abstention_queries(Path("/nonexistent/abstention_queries.json"))
+
+
+def test_format_abstention_table() -> None:
+    summary = {
+        "num_queries": 2,
+        "pre_llm_abstention_count": 1,
+        "llm_abstention_count": 1,
+        "total_abstention_count": 2,
+        "hallucination_count": 0,
+        "total_abstention_rate": 1.0,
+        "categories": {
+            "out_of_domain": {
+                "num_queries": 2,
+                "pre_llm_abstention_count": 1,
+                "llm_abstention_count": 1,
+                "total_abstention_count": 2,
+                "hallucination_count": 0,
+                "total_abstention_rate": 1.0,
+            }
+        },
+    }
+    table = format_abstention_table(summary)
+    assert "| out_of_domain | 2 | 1 | 1 | 2 | 0 | 100.0% |" in table
+    assert "| **Overall** | **2** | **1** | **1** | **2** | **0** | **100.0%** |" in table
+
+
+class FakeEncoder:
+    def encode(
+        self,
+        question: str,
+        *,
+        show_progress_bar: bool = False,
+        convert_to_numpy: bool = True,
+        normalize_embeddings: bool = True,
+    ) -> np.ndarray:
+        return np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
+
+class FakeReranker:
+    def predict(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        show_progress_bar: bool = False,
+    ) -> np.ndarray:
+        scores = []
+        for question, _ in pairs:
+            if "low_score" in question:
+                scores.append(-10.0)
+            else:
+                scores.append(2.5)
+        return np.array(scores, dtype=np.float32)
+
+
+class AbstentionOllamaClient:
+    def chat(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        think: bool = False,
+        options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        user_msg = messages[1]["content"]
+        if "hallucinate" in user_msg:
+            return {"message": {"content": "This is totally true according to [1]."}}
+        return {"message": {"content": "Insufficient evidence: the passages do not mention this."}}
+
+
+def test_evaluate_abstention_distinguishes_pre_llm_and_llm(tmp_path: Path) -> None:
+    collection_name = "test_abstention_chunks"
+    client = QdrantClient(path=str(tmp_path / "qdrant"))
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=4, distance=Distance.COSINE),
+    )
+    chunks = [
+        {
+            "chunk_id": "c1",
+            "parent_document_id": "doc_1",
+            "original_document_ids": ["doc_1"],
+            "title": "",
+            "text": "General financial principles.",
+            "vec": [1.0, 0.0, 0.0, 0.0],
+        }
+    ]
+    client.upsert(
+        collection_name=collection_name,
+        points=[
+            PointStruct(
+                id=chunk_id_to_uuid(c["chunk_id"]),
+                vector=c["vec"],
+                payload={k: v for k, v in c.items() if k != "vec"},
+            )
+            for c in chunks
+        ],
+    )
+
+    queries = [
+        {"query_id": "q1", "category": "out_of_domain", "question": "low_score sourdough bread?"},
+        {"query_id": "q2", "category": "missing_information", "question": "refuse this question?"},
+        {"query_id": "q3", "category": "false_premise", "question": "hallucinate this question?"},
+    ]
+
+    fake_encoder: Any = FakeEncoder()
+    fake_reranker: Any = FakeReranker()
+    fake_ollama: Any = AbstentionOllamaClient()
+
+    summary, records = evaluate_abstention(
+        queries=queries,
+        qdrant_client=client,
+        embedding_model=fake_encoder,
+        reranker=fake_reranker,
+        ollama_client=fake_ollama,
+        min_rerank_score=-5.0,
+        collection_name=collection_name,
+        show_progress=False,
+    )
+
+    assert summary["num_queries"] == 3
+    assert summary["pre_llm_abstention_count"] == 1
+    assert summary["llm_abstention_count"] == 1
+    assert summary["total_abstention_count"] == 2
+    assert summary["hallucination_count"] == 1
+    assert summary["total_abstention_rate"] == pytest.approx(2 / 3, rel=1e-3)
+    assert summary["pre_llm_abstention_rate"] == pytest.approx(1 / 3, rel=1e-3)
+    assert summary["llm_abstention_rate"] == pytest.approx(0.5, rel=1e-3)
+    assert summary["hallucination_rate"] == pytest.approx(1 / 3, rel=1e-3)
+
+    assert records[0]["pre_llm_gated"] is True
+    assert records[0]["abstained"] is True
+    assert records[1]["llm_abstained"] is True
+    assert records[1]["abstained"] is True
+    assert records[2]["hallucinated"] is True
+    assert records[2]["abstained"] is False
+
+    client.close()
